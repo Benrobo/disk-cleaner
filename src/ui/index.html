@@ -1,0 +1,701 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+/* Native look: the window has macOS popover vibrancy behind a transparent page, and all
+   colors are the system's semantic colors, so it follows light/dark mode and the accent color. */
+:root {
+  color-scheme: light dark;
+  --label: -apple-system-label;
+  --label2: -apple-system-secondary-label;
+  --label3: -apple-system-tertiary-label;
+  --sep: -apple-system-separator;
+  --accent: -apple-system-control-accent;
+  --group: rgba(255,255,255,.5);
+  --fill: rgba(0,0,0,.05);
+  --fill2: rgba(0,0,0,.09);
+  --hover: rgba(0,0,0,.045);
+  --seg-on: #fff;
+  --red: #ff3b30; --green: #28a745; --orange: #f08c00;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --group: rgba(255,255,255,.055); --fill: rgba(255,255,255,.06); --fill2: rgba(255,255,255,.1);
+          --hover: rgba(255,255,255,.06); --seg-on: rgba(255,255,255,.22); --red: #ff453a; --green: #32d74b; --orange: #ff9f0a; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+body { font: 13px/1.35 -apple-system, BlinkMacSystemFont, sans-serif; color: var(--label); -webkit-user-select: none;
+       cursor: default; -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; }
+#app { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.l2 { color: var(--label2); } .l3 { color: var(--label3); }
+.small { font-size: 11px; }
+.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grow { flex: 1; min-width: 0; }
+.link { color: var(--accent); cursor: pointer; }
+.link:hover { text-decoration: underline; }
+
+/* header */
+header { display: flex; align-items: center; gap: 8px; padding: 10px 10px 8px; }
+.seg { display: flex; background: var(--fill2); border-radius: 7px; padding: 2px; gap: 1px; }
+.seg > div { flex: 1; text-align: center; padding: 3px 9px; border-radius: 5px; font-size: 12px; font-weight: 500; color: var(--label2); white-space: nowrap; }
+.seg > div:hover:not(.on) { color: var(--label); }
+.seg > div.on { background: var(--seg-on); color: var(--label); box-shadow: 0 .5px 1.5px rgba(0,0,0,.18), 0 0 0 .5px rgba(0,0,0,.04); }
+header .seg { flex: 1; }
+.ib { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--label2); flex: none; }
+.ib:hover { background: var(--hover); color: var(--label); }
+
+/* content */
+#view { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 2px 12px 12px; }
+#view::-webkit-scrollbar { width: 7px; } #view::-webkit-scrollbar-thumb { background: var(--fill2); border-radius: 7px; }
+footer { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-top: .5px solid var(--sep); min-height: 46px; }
+footer:empty { display: none; }
+.title { font-size: 15px; font-weight: 600; margin: 6px 2px 2px; }
+.caption { color: var(--label2); font-size: 12px; margin: 0 2px 10px; }
+.section { font-size: 11px; font-weight: 600; color: var(--label2); margin: 14px 4px 5px; }
+
+/* grouped list, as in System Settings */
+.group { background: var(--group); border-radius: 9px; box-shadow: 0 0 0 .5px var(--sep); overflow: hidden; margin-bottom: 10px; }
+.r { display: flex; align-items: center; gap: 9px; padding: 7px 10px; min-height: 36px; position: relative; }
+.group > .r + .r::before, .group > .sub + .r::before, .group > .confirm + .r::before, .sub .r + .r::before {
+  content: ""; position: absolute; top: 0; left: 10px; right: 0; border-top: .5px solid var(--sep); }
+.r.click:hover { background: var(--hover); }
+.r .t { font-weight: 500; }
+.r .d { font-size: 11px; color: var(--label2); margin-top: 1px; }
+.r .v { color: var(--label2); font-weight: 500; white-space: nowrap; }
+.r .v.strong { color: var(--label); }
+.sub { background: var(--fill); position: relative; max-height: 260px; overflow-y: auto; }
+.sub .r { min-height: 30px; padding: 5px 10px 5px 40px; font-size: 12px; }
+.sub .r .p { font-size: 10.5px; color: var(--label3); }
+.chev { color: var(--label3); transition: transform .15s; flex: none; }
+.chev.open { transform: rotate(90deg); }
+.sq { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; color: #fff; flex: none; }
+.tag { font-size: 10.5px; font-weight: 500; color: var(--label2); background: var(--fill2); border-radius: 4px; padding: 1px 5px; white-space: nowrap; }
+
+/* controls */
+.cb { width: 14px; height: 14px; border-radius: 4px; flex: none; display: grid; place-items: center; color: #fff;
+      background: var(--group); box-shadow: inset 0 0 0 .5px rgba(128,128,128,.6), 0 .5px 1px rgba(0,0,0,.08); }
+.cb.on, .cb.mixed { background: var(--accent); box-shadow: none; }
+.cb.off { opacity: .35; }
+.btn { font: 500 13px -apple-system, sans-serif; border: none; border-radius: 6px; height: 26px; padding: 0 12px; background: var(--accent);
+       color: #fff; white-space: nowrap; box-shadow: 0 .5px 1px rgba(0,0,0,.2); }
+.btn:active { filter: brightness(.9); }
+.btn:disabled { opacity: .4; }
+.btn.sec { background: var(--fill2); color: var(--label); box-shadow: 0 0 0 .5px rgba(128,128,128,.25); }
+.btn.red { background: var(--red); }
+.btn.sm { height: 22px; font-size: 12px; padding: 0 10px; }
+.search { display: flex; align-items: center; gap: 5px; background: var(--fill2); border-radius: 6px; padding: 0 7px; height: 24px; color: var(--label3); flex: 1; }
+.search input { all: unset; flex: 1; font-size: 12px; color: var(--label); min-width: 0; }
+select { font: 12px -apple-system; }
+.spinner { width: 14px; height: 14px; animation: spin .8s steps(8) infinite; flex: none; color: var(--label2); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.bar { height: 4px; border-radius: 2px; background: var(--fill2); overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent); border-radius: 2px; transition: width .25s; }
+.indet > i { width: 35% !important; animation: indet 1.2s ease-in-out infinite; }
+@keyframes indet { from { margin-left: -35%; } to { margin-left: 100%; } }
+.toolbar { display: flex; align-items: center; gap: 8px; margin: 2px 0 10px; }
+
+/* summary numbers */
+.big { font-size: 28px; font-weight: 600; letter-spacing: -.6px; line-height: 1.1; }
+.summary { display: flex; align-items: flex-end; gap: 10px; margin: 8px 2px 12px; }
+
+/* disk usage bar */
+.usage { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--fill2); margin: 8px 0 7px; }
+.usage i { height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11px; color: var(--label2); }
+.legend b { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+.crumbs { display: flex; align-items: center; gap: 2px; margin: 0 0 8px; font-size: 12px; flex-wrap: wrap; }
+.crumbs span.c { padding: 1px 5px; border-radius: 4px; color: var(--label2); }
+.crumbs span.c:hover { background: var(--hover); color: var(--label); }
+.crumbs span.c.cur { color: var(--label); font-weight: 600; }
+.prop { height: 3px; border-radius: 2px; background: var(--fill2); margin-top: 4px; overflow: hidden; }
+.prop > i { display: block; height: 100%; background: var(--accent); opacity: .75; }
+.acts { display: none; gap: 2px; }
+.r:hover .acts { display: flex; }
+.confirm { padding: 9px 10px; background: var(--fill); position: relative; }
+.confirm .q { margin-bottom: 7px; font-size: 12px; }
+.confirm .w { color: var(--label2); font-size: 11px; margin-bottom: 7px; }
+.confirm .cmd { font: 10.5px ui-monospace, Menlo, monospace; color: var(--label3); margin-bottom: 8px; word-break: break-all; }
+
+/* apps */
+.icon { width: 28px; height: 28px; flex: none; }
+.avatar { width: 26px; height: 26px; margin: 1px; border-radius: 6px; background: var(--fill2); display: grid; place-items: center; font-weight: 600; color: var(--label2); flex: none; }
+
+/* status */
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.tile { background: var(--group); border-radius: 9px; box-shadow: 0 0 0 .5px var(--sep); padding: 9px 11px 10px; }
+.tile .k { font-size: 11px; font-weight: 600; color: var(--label2); display: flex; justify-content: space-between; }
+.tile .n { font-size: 22px; font-weight: 600; letter-spacing: -.4px; margin: 2px 0 5px; }
+.tile .n small { font-size: 12px; font-weight: 500; color: var(--label2); margin-left: 2px; letter-spacing: 0; }
+.tile .s { font-size: 11px; color: var(--label2); margin-top: 5px; }
+.cbars { display: flex; align-items: flex-end; gap: 1.5px; height: 24px; }
+.cbars i { flex: 1; background: var(--accent); opacity: .8; border-radius: 1px; min-height: 1px; }
+.health-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin: 0 7px 4px 0; vertical-align: middle; }
+
+/* done */
+.done { text-align: center; padding: 26px 8px 14px; }
+.done .ok { color: var(--green); }
+
+#toast { position: absolute; left: 12px; right: 12px; bottom: 56px; padding: 8px 11px; border-radius: 8px; font-size: 12px;
+         background: rgba(30,30,32,.92); color: #fff; opacity: 0; transform: translateY(6px); transition: all .2s; pointer-events: none; }
+#toast.show { opacity: 1; transform: none; }
+#toast.err { background: rgba(190,40,30,.95); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hdr"><div class="seg" id="tabs"></div><div id="hicons" style="display:flex;gap:2px"></div></header>
+  <main id="view"></main>
+  <footer id="foot"></footer>
+  <div id="toast"></div>
+</div>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const post = (m) => window.ipc.postMessage(JSON.stringify(m));
+window.onerror = (msg, src, line) => post({ t: "jsError", msg: `${msg} @${line}` });
+
+// ---------------------------------------------------------------- helpers
+function fmt(b) {
+  const u = ["bytes", "KB", "MB", "GB", "TB"]; let v = b, i = 0;
+  while (v >= 1000 && i < u.length - 1) { v /= 1000; i++; }
+  if (i === 0) return `${b} bytes`;
+  return `${v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2)} ${u[i]}`;
+}
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const plural = (n, w) => `${n.toLocaleString()} ${w}${n === 1 ? "" : "s"}`;
+const shortPath = (p, n = 58) => (!p || p.length <= n ? p || "" : `${p.slice(0, 18)}…${p.slice(-(n - 19))}`);
+
+// Dates: "Mar 3, 2025 · 7 months ago" (system locale, like dayjs's format + fromNow).
+const DATE = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+const REL = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+const DAY = 86400;
+function ago(ts) {
+  const d = ts - Date.now() / 1000;
+  for (const [u, s] of [["year", 365 * DAY], ["month", 30 * DAY], ["week", 7 * DAY], ["day", DAY], ["hour", 3600], ["minute", 60]]) {
+    if (Math.abs(d) >= s) return REL.format(Math.round(d / s), u);
+  }
+  return "just now";
+}
+const when = (ts) => `${DATE.format(new Date(ts * 1000))} · ${ago(ts)}`;
+const ageDays = (ts) => (Date.now() / 1000 - ts) / DAY;
+
+let R = []; // payloads referenced by data-r, rebuilt every render
+const A = (name, payload) => `data-a="${name}"${payload === undefined ? "" : ` data-r="${R.push(payload) - 1}"`}`;
+
+const svg = (w, h, body, extra = "") => `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" ${extra}>${body}</svg>`;
+const stroke = 'fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"';
+const I = {
+  check: svg(10, 10, `<path d="M2 5.3l2 2L8.2 2.8" ${stroke} stroke-width="1.6"/>`),
+  dash: svg(10, 10, `<path d="M2.5 5h5" ${stroke} stroke-width="1.6"/>`),
+  chev: svg(10, 10, `<path d="M3.5 2l3 3-3 3" ${stroke} stroke-width="1.4"/>`, 'class="chev"'),
+  refresh: svg(14, 14, `<path d="M11.6 7.6A4.6 4.6 0 113.6 4" ${stroke} stroke-width="1.3"/><path d="M11 1.6v2.7H8.3" ${stroke} stroke-width="1.3"/>`),
+  power: svg(14, 14, `<path d="M7 1.8v4.6M3.9 3.6a4.6 4.6 0 106.2 0" ${stroke} stroke-width="1.3"/>`),
+  lock: svg(14, 14, `<rect x="3" y="6.2" width="8" height="5.8" rx="1.3" fill="currentColor"/><path d="M4.8 6.2V4.6a2.2 2.2 0 014.4 0v1.6" ${stroke} stroke-width="1.3"/>`),
+  pin: svg(14, 14, `<path d="M5 2h4l-.6 3.4L10.6 8H3.4l2.2-2.6zM7 8v4.5" ${stroke} stroke-width="1.2"/>`),
+  close: svg(12, 12, `<path d="M3 3l6 6M9 3l-6 6" ${stroke} stroke-width="1.3"/>`),
+  search: svg(12, 12, `<circle cx="5.2" cy="5.2" r="3.6" ${stroke} stroke-width="1.3"/><path d="M8 8l2.6 2.6" ${stroke} stroke-width="1.3"/>`),
+  reveal: svg(14, 14, `<circle cx="6" cy="6" r="3.8" ${stroke} stroke-width="1.2"/><path d="M8.8 8.8l3 3" ${stroke} stroke-width="1.2"/>`),
+  trash: svg(14, 14, `<path d="M2.5 3.8h9M5.5 3.8V2.5h3v1.3M3.7 3.8l.6 7.6a1 1 0 001 .9h3.4a1 1 0 001-.9l.6-7.6" ${stroke} stroke-width="1.2"/>`),
+  back: svg(12, 12, `<path d="M7.5 2.5L4 6l3.5 3.5" ${stroke} stroke-width="1.4"/>`),
+  folder: svg(16, 14, `<path d="M1 3a1.2 1.2 0 011.2-1.2h3.4l1.4 1.5h6.8A1.2 1.2 0 0115 4.5v7.3a1.2 1.2 0 01-1.2 1.2H2.2A1.2 1.2 0 011 11.8z" fill="#5aa9f5"/><path d="M1 5.2h14v6.6a1.2 1.2 0 01-1.2 1.2H2.2A1.2 1.2 0 011 11.8z" fill="#7fbdf8"/>`),
+  file: svg(16, 14, `<path d="M4 .8h5.4L12.5 4v8.6a.8.8 0 01-.8.8H4a.8.8 0 01-.8-.8V1.6A.8.8 0 014 .8z" fill="var(--group)" stroke="rgba(128,128,128,.7)" stroke-width=".8"/>`),
+  okCircle: svg(44, 44, `<circle cx="22" cy="22" r="20" fill="currentColor" opacity=".15"/><path d="M13.5 22.5l5.5 5.5 11.5-12" ${stroke} stroke-width="3"/>`),
+};
+// The classic macOS spinner: 8 spokes stepping around.
+I.spinner = svg(14, 14, [...Array(8)].map((_, i) => `<line x1="7" y1="1.6" x2="7" y2="4.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="${(1 - i / 9).toFixed(2)}" transform="rotate(${-i * 45} 7 7)"/>`).join(""), 'class="spinner"');
+
+// Category squircles, System Settings style.
+const G = {
+  AppCaches: ["#0a84ff", `<rect x="2" y="4" width="7" height="6" rx="1.4" ${stroke} stroke-width="1.3"/><path d="M4.5 2.4h4.8a1.3 1.3 0 011.3 1.3v4.6" ${stroke} stroke-width="1.3"/>`],
+  SystemCaches: ["#8e8e93", `<circle cx="6.5" cy="6.5" r="2" ${stroke} stroke-width="1.3"/><path d="M6.5 1.3v1.5M6.5 10.2v1.5M1.3 6.5h1.5M10.2 6.5h1.5M2.8 2.8l1.1 1.1M9.1 9.1l1.1 1.1M2.8 10.2l1.1-1.1M9.1 3.9l1.1-1.1" ${stroke} stroke-width="1.3"/>`],
+  Logs: ["#ff9f0a", `<path d="M3 1.8h5l2 2v7.4H3z" ${stroke} stroke-width="1.2"/><path d="M4.8 6h3.4M4.8 8.2h3.4" ${stroke} stroke-width="1.2"/>`],
+  DevTools: ["#5e5ce6", `<path d="M4.4 3.6L1.8 6.5l2.6 2.9M8.6 3.6l2.6 2.9-2.6 2.9" ${stroke} stroke-width="1.4"/>`],
+  AiTools: ["#bf5af2", `<path d="M6.5 1.5l1.2 3.8 3.8 1.2-3.8 1.2-1.2 3.8-1.2-3.8L1.5 6.5l3.8-1.2z" fill="currentColor"/>`],
+  Browsers: ["#30b0c7", `<circle cx="6.5" cy="6.5" r="4.8" ${stroke} stroke-width="1.2"/><path d="M1.7 6.5h9.6M6.5 1.7c-2.4 2.6-2.4 7 0 9.6M6.5 1.7c2.4 2.6 2.4 7 0 9.6" ${stroke} stroke-width="1.1"/>`],
+  Installers: ["#a2845e", `<path d="M6.5 1.8v6M4 5.5l2.5 2.5L9 5.5M2.2 9.5v1.7h8.6V9.5" ${stroke} stroke-width="1.3"/>`],
+  Trash: ["#636366", `<path d="M2.2 3.3h8.6M5 3.3V2h3v1.3M3.3 3.3l.6 7.7h5.2l.6-7.7" ${stroke} stroke-width="1.2"/>`],
+};
+const sq = (key) => { const [c, body] = G[key] || ["#8e8e93", ""]; return `<span class="sq" style="background:${c}">${svg(13, 13, body)}</span>`; };
+const cb = (state) => `<span class="cb ${state}">${state === "on" ? I.check : state === "mixed" ? I.dash : ""}</span>`;
+function spark(vals, max, h) {
+  const w = 160;
+  if (!vals || vals.length < 2) return svg(w, h, "", `width="100%" preserveAspectRatio="none"`);
+  const pts = vals.map((v, i) => [(i / (vals.length - 1)) * w, h - 1 - (Math.min(v, max) / (max || 1)) * (h - 3)]);
+  const d = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join("");
+  return `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><path d="${d}L${w},${h}L0,${h}Z" fill="var(--accent)" opacity=".15"/><path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.4" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+// ---------------------------------------------------------------- state
+const S = {
+  tab: "clean", home: "", fda: true, pinned: false,
+  clean: null, cleanStep: "select", open: new Set(), cleanResult: null, cleanFinal: null,
+  apps: null, appsSub: "uninstall", sort: "size", search: "", appSel: new Set(), appOpen: null, appsStep: "list", uninstallResult: null, confirmStartup: null,
+  an: null, anPath: [], anSub: "folders", confirmTrash: null,
+  opt: null, optConfirm: null, optResult: {},
+  st: null, prog: {}, liveOpts: {},
+};
+const TABS = [["clean", "Clean"], ["apps", "Apps"], ["analyze", "Analyze"], ["optimize", "Optimize"], ["status", "Status"]];
+const TAB_OF = { cleanScan: "clean", clean: "clean", appsScan: "apps", uninstall: "apps", analyze: "analyze" };
+
+// ---------------------------------------------------------------- messages from Rust
+window.recv = (m) => {
+  switch (m.t) {
+    case "home": S.home = m.home; S.fda = m.fda; break;
+    case "shown": S.fda = m.fda; S.pinned = m.pinned; break;
+    case "pinned": S.pinned = m.on; break;
+    case "tab": S.tab = m.tab; break;
+    case "clean": S.clean = m; if (!m.busy) delete S.prog.cleanScan; break;
+    case "apps": S.apps = m; if (!m.busy) delete S.prog.appsScan;
+      for (const p of [...S.appSel]) if (!m.apps || !m.apps.some((a) => a.path === p)) S.appSel.delete(p); break;
+    case "analyze": S.an = m; S.confirmTrash = null; if (!m.busy) delete S.prog.analyze; break;
+    case "optimize": S.opt = m; break;
+    case "optimized": S.optResult[m.i] = m.ok ? "ok" : m.error || "Failed"; break;
+    case "status": S.st = m; if (S.tab !== "status") return; break;
+    case "progress": S.prog[m.kind] = m.p; updateLive(m.kind); return;
+    case "done":
+      if (m.kind === "clean") { S.cleanResult = m; S.cleanStep = "done"; S.cleanFinal = S.prog.clean; delete S.prog.clean; }
+      else { S.uninstallResult = m; S.appsStep = "done"; S.appSel.clear(); delete S.prog.uninstall; }
+      break;
+    case "aborted": S.cleanStep = "select"; delete S.prog.clean; break;
+    case "uninstallBlocked": S.appsStep = "list";
+      toast(m.stale ? "The app list was out of date. It's refreshing now; review and uninstall again." : `Quit ${m.names.join(", ")} first, then try again.`, true); break;
+    case "toast": toast(m.text, m.error); return;
+  }
+  render();
+};
+
+let toastTimer;
+function toast(text, err) {
+  const t = $("toast"); t.textContent = text; t.className = "show" + (err ? " err" : "");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.className = ""), 3500);
+}
+
+// ---------------------------------------------------------------- render
+function render() {
+  R = [];
+  const view = $("view");
+  const key = `${S.tab}:${S.cleanStep}:${S.appsStep}:${S.anPath.join("/")}:${S.anSub}:${S.appsSub}`;
+  const keepScroll = view.dataset.key === key ? view.scrollTop : 0;
+  $("tabs").innerHTML = TABS.map(([k, n]) => `<div class="${S.tab === k ? "on" : ""}" ${A("tab", k)}>${n}</div>`).join("");
+  $("hicons").innerHTML = (S.pinned
+      ? `<div class="ib" ${A("unpin")} title="Attach to the menu bar again">${I.pin}</div><div class="ib" ${A("hidePanel")} title="Close">${I.close}</div>`
+      : "") + `<div class="ib" ${A("quit")} title="Quit Disk Cleaner">${I.power}</div>`;
+  const [html, foot] = ({ clean: viewClean, apps: viewApps, analyze: viewAnalyze, optimize: viewOptimize, status: viewStatus })[S.tab]();
+  view.innerHTML = html;
+  $("foot").innerHTML = foot || "";
+  view.dataset.key = key;
+  view.scrollTop = keepScroll;
+  const s = $("search");
+  if (s && S.searchFocus && document.activeElement !== s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+}
+
+const fdaRow = (what) => S.fda ? "" :
+  `<div class="group"><div class="r click" ${A("fda")}><span class="l2">${I.lock}</span><div class="grow small l2">Turn on Full Disk Access to include ${what}.</div><span class="link small">Open Settings</span></div></div>`;
+const rescanButton = (what, busy) => busy ? `<span class="ib">${I.spinner}</span>` : `<div class="ib" ${A("rescan", what)} title="Scan again">${I.refresh}</div>`;
+
+// ---------------------------------------------------------------- live progress
+const EMPTY_P = { files: 0, bytes: 0, done: 0, total: 0, current: "", groups: [] };
+const counters = {};
+function live(kind, o) { S.liveOpts[kind] = o; return `<div id="live-${kind}">${liveInner(kind, o)}</div>`; }
+function liveInner(kind, o) {
+  const p = S.prog[kind] || EMPTY_P;
+  const pct = p.total ? Math.min(100, (p.done / p.total) * 100) : 0;
+  let groups = p.groups.slice();
+  if (o.sort === "size") groups.sort((a, b) => b[1] - a[1]);
+  if (o.sort === "recent") groups.reverse();
+  const shown = groups.slice(0, o.limit || 12), more = groups.length - shown.length;
+  const counts = [p.files ? plural(p.files, "file") : "", p.total ? `${p.done.toLocaleString()} of ${plural(p.total, o.of)}` : ""].filter(Boolean).join(" · ");
+  const row = (g) => {
+    const state = g[2] ? "fin" : g[1] > 0 ? "act" : "wait";
+    const mark = state === "fin" ? `<span style="color:var(--green)">${I.check}</span>` : state === "act" ? I.spinner : `<span class="l3">·</span>`;
+    const icon = o.icons ? sq(o.icons[g[0]]) : "";
+    return `<div class="r"><span style="width:14px;display:grid;place-items:center">${mark}</span>${icon}<div class="grow trunc ${state === "wait" ? "l3" : ""}">${esc(g[0])}</div><span class="v ${state === "wait" ? "l3" : ""}">${state === "wait" ? "Waiting" : fmt(g[1])}</span></div>`;
+  };
+  return `<div class="title">${o.title}</div><div class="caption">${o.sub}</div>
+    <div class="summary"><div class="big" data-count="${kind}" data-to="${p.bytes}">${fmt(Math.round(counters[kind]?.v || 0))}</div><div class="l2" style="padding-bottom:3px">${o.unit}</div></div>
+    <div class="bar ${p.total ? "" : "indet"}"><i style="width:${Math.max(2, pct)}%"></i></div>
+    <div style="display:flex;gap:8px;margin:7px 2px 12px" class="small"><span class="l2">${counts || "Starting…"}</span><span class="grow trunc l3" style="text-align:right">${esc(shortPath(p.current, 48))}</span></div>
+    ${shown.length ? `<div class="group">${shown.map(row).join("")}${more > 0 ? `<div class="r l3 small">and ${more} more</div>` : ""}</div>` : ""}`;
+}
+function strip(kind, label) { return `<div class="group"><div class="r small" id="strip-${kind}" data-label="${esc(label)}">${stripInner(S.prog[kind] || EMPTY_P, label)}</div></div>`; }
+function stripInner(p, label) {
+  return `${I.spinner}<span class="l2">${label}${p.total ? ` · ${p.done} of ${p.total}` : ""}</span><span class="grow trunc l3" style="text-align:right">${esc(shortPath(p.current, 40))}</span>`;
+}
+/** Progress ticks only touch the progress widgets, so clicks and scrolling elsewhere aren't disturbed. */
+function updateLive(kind) {
+  if (TAB_OF[kind] !== S.tab) return;
+  const box = $(`live-${kind}`), st = $(`strip-${kind}`);
+  if (box) { box.innerHTML = liveInner(kind, S.liveOpts[kind]); requestAnimationFrame(tickCounters); }
+  else if (st) st.innerHTML = stripInner(S.prog[kind], st.dataset.label);
+}
+function tickCounters() {
+  let again = false;
+  document.querySelectorAll("[data-count]").forEach((el) => {
+    const c = (counters[el.dataset.count] ||= { v: 0 }), to = +el.dataset.to;
+    if (to < c.v) c.v = 0;
+    c.v += (to - c.v) * 0.22;
+    if (to - c.v < 50000) c.v = to; else again = true;
+    el.textContent = fmt(Math.round(c.v));
+  });
+  if (again) requestAnimationFrame(tickCounters);
+}
+
+// ---------------------------------------------------------------- clean
+const CAT_ICONS = { "App Caches": "AppCaches", "System Caches": "SystemCaches", Logs: "Logs", "Developer Tools": "DevTools", "AI Tools": "AiTools", Browsers: "Browsers", "Installers & Updates": "Installers", Trash: "Trash" };
+function catStats(c) {
+  let sel = 0, selSize = 0, totSize = 0, selectable = 0;
+  for (const it of c.items) { totSize += it.size; if (!it.running) selectable++; if (it.sel && !it.running) { sel++; selSize += it.size; } }
+  return { sel, selSize, tot: c.items.length, totSize, selectable };
+}
+const selectedItems = () => (S.clean?.cats ? S.clean.cats.flatMap((c) => c.items.filter((i) => i.sel && !i.running)) : []);
+
+function viewClean() {
+  const c = S.clean;
+  if (S.cleanStep === "review") return cleanReview();
+  if (S.cleanStep === "progress") return [live("clean", { title: "Cleaning", sub: "Removing the selected items. Open apps are skipped.", unit: "freed", of: "item", icons: CAT_ICONS }), ""];
+  if (S.cleanStep === "done") return cleanDone();
+  if (!c || !c.cats) return [live("cleanScan", { title: "Scanning", sub: "Caches, logs, developer files, browsers and the Trash.", unit: "found so far", of: "location", icons: CAT_ICONS }), ""];
+  const total = c.cats.reduce((s, x) => s + catStats(x).totSize, 0);
+  const count = c.cats.reduce((s, x) => s + x.items.length, 0);
+  const sel = selectedItems(), selSize = sel.reduce((s, i) => s + i.size, 0);
+  let h = `<div class="summary"><div class="grow"><div class="big">${fmt(total)}</div><div class="l2 small" style="margin-top:3px">can be cleaned · ${plural(count, "item")}</div></div>${rescanButton("clean", c.busy)}</div>`;
+  if (c.busy) h += strip("cleanScan", "Updating");
+  if (c.holders.length) {
+    const names = c.holders.length > 3 ? `${c.holders.slice(0, 3).join(", ")} and ${c.holders.length - 3} more` : c.holders.join(", ");
+    h += `<div class="caption">${esc(names)} ${c.holders.length === 1 ? "is" : "are"} open, so ${c.holders.length === 1 ? "its" : "their"} caches are skipped. <span class="link" ${A("quitHolders")}>Quit ${c.holders.length === 1 ? "it" : "them"}</span></div>`;
+  }
+  h += `<div class="group">`;
+  for (const cat of c.cats) {
+    const st = catStats(cat), open = S.open.has(cat.key);
+    const state = st.selectable === 0 ? "off" : st.sel === 0 ? "" : st.sel === st.selectable ? "on" : "mixed";
+    h += `<div class="r click" ${A("expand", cat.key)}>
+      <span ${st.selectable ? A("catToggle", cat.key) : ""}>${cb(state)}</span>${sq(cat.key)}
+      <div class="grow"><div class="t">${esc(cat.title)}</div><div class="d trunc">${esc(cat.blurb)}</div></div>
+      <div style="text-align:right"><div class="v strong">${fmt(st.selSize)}</div>${st.selSize !== st.totSize ? `<div class="d">of ${fmt(st.totSize)}</div>` : ""}</div>
+      ${I.chev.replace('class="chev"', `class="chev ${open ? "open" : ""}"`)}</div>`;
+    if (open) {
+      h += `<div class="sub">` + cat.items.map((it) => `<div class="r ${it.running ? "" : "click"}" ${it.running ? "" : A("itemToggle", it.i)}>
+        ${cb(it.running ? "off" : it.sel ? "on" : "")}
+        <div class="grow"><div class="trunc">${esc(it.label)}${it.note ? ` <span class="l3">— ${esc(it.note)}</span>` : ""}</div>
+          <div class="p trunc">${it.mtime ? `Last changed ${esc(when(it.mtime))} · ` : ""}${esc(it.path)}</div></div>
+        ${it.running ? '<span class="tag">Open</span>' : ""}<span class="v small">${fmt(it.size)}</span></div>`).join("") + `</div>`;
+    }
+  }
+  h += `</div>` + fdaRow("the Trash");
+  const foot = `<span class="small l2">${sel.length} of ${count} selected</span>
+    <span class="small l3"><span class="link" ${A("selAll")}>All</span> · <span class="link" ${A("selNone")}>None</span> · <span class="link" ${A("selRec")}>Recommended</span></span>
+    <div class="grow"></div><button class="btn" ${A("toReview")} ${sel.length && !c.busy && !c.cleaning ? "" : "disabled"}>Clean ${fmt(selSize)}…</button>`;
+  return [h, foot];
+}
+
+function cleanReview() {
+  const sel = selectedItems(), total = sel.reduce((s, i) => s + i.size, 0), ids = new Set(sel.map((i) => i.i));
+  let h = `<div class="title">Clean ${fmt(total)}?</div><div class="caption">${plural(sel.length, "item")} will be deleted permanently. Caches and logs are recreated by apps when needed.</div><div class="group">`;
+  const keys = [];
+  for (const c of S.clean.cats) {
+    const items = c.items.filter((i) => ids.has(i.i));
+    if (!items.length) continue;
+    keys.push(c.key);
+    h += `<div class="r">${sq(c.key)}<div class="grow">${esc(c.title)} <span class="l3 small">${items.length}</span></div><span class="v">${fmt(items.reduce((s, i) => s + i.size, 0))}</span></div>`;
+  }
+  h += `</div>`;
+  const notes = [];
+  if (keys.includes("Trash")) notes.push("The Trash is emptied; its files can't be recovered.");
+  if (keys.includes("Installers")) notes.push("Selected installers in Downloads are deleted.");
+  if (keys.includes("DevTools")) notes.push("The next build or package install will be slower while caches refill.");
+  if (keys.includes("Browsers")) notes.push("Browsers stay signed in. Cookies, history and passwords are not touched.");
+  const open = S.clean.cats.reduce((n, c) => n + c.items.filter((i) => i.running).length, 0);
+  if (open) notes.push(`${plural(open, "item")} belonging to open apps will be skipped.`);
+  if (notes.length) h += `<div class="small l2" style="margin:0 4px;line-height:1.6">${notes.map(esc).join("<br>")}</div>`;
+  return [h, `<button class="btn sec" ${A("back")}>Back</button><div class="grow"></div><button class="btn" ${A("cleanNow")} ${S.clean.busy ? "disabled" : ""}>Clean</button>`];
+}
+
+function cleanDone() {
+  const r = S.cleanResult;
+  let h = `<div class="done"><span class="ok">${I.okCircle}</span><div class="big" style="margin-top:10px">${fmt(r.freed)} cleaned</div>
+    <div class="l2" style="margin-top:4px">Free space ${fmt(r.before)} → <b style="color:var(--label)">${fmt(r.after)}</b></div></div>`;
+  const groups = (S.cleanFinal?.groups || []).filter((g) => g[1] > 0);
+  if (groups.length) h += `<div class="group">${groups.map((g) => `<div class="r">${sq(CAT_ICONS[g[0]])}<div class="grow">${esc(g[0])}</div><span class="v">${fmt(g[1])}</span></div>`).join("")}</div>`;
+  const notes = [];
+  if (r.skipped.length) notes.push(`${plural(r.skipped.length, "item")} skipped because the app was open.`);
+  if (r.refused) notes.push(`${plural(r.refused, "item")} left alone because macOS protects ${r.refused === 1 ? "it" : "them"}.`);
+  if (notes.length) h += `<div class="small l2" style="margin:0 4px 10px;line-height:1.6">${notes.join("<br>")}</div>`;
+  if (r.snapshotHint) h += `<div class="group"><div class="r click" ${A("gotoSnapshots")}><div class="grow small">Time Machine snapshots are still holding some of this space.</div><span class="link small">Thin snapshots</span></div></div>`;
+  return [h, `<div class="grow"></div><button class="btn" ${A("cleanDone")}>Done</button>`];
+}
+
+// ---------------------------------------------------------------- apps
+function appMeta(a) {
+  const parts = [];
+  if (a.version) parts.push(esc(a.version));
+  if (a.running) parts.push(`<span style="color:var(--green)">Open now</span>`);
+  else if (a.lastUsed) parts.push(`Opened ${esc(when(a.lastUsed))}`);
+  else parts.push(a.menuBar ? "Menu bar app" : "Never opened");
+  return parts.join(" · ");
+}
+const unused = (a) => !a.running && !a.menuBar && (!a.lastUsed || ageDays(a.lastUsed) > 90);
+const appIcon = (a) => (a.icon ? `<img class="icon" src="${a.icon}">` : `<div class="avatar">${esc((a.name || "?")[0])}</div>`);
+function sortedApps() {
+  const q = S.search.trim().toLowerCase();
+  const by = { name: (a, b) => a.name.localeCompare(b.name), size: (a, b) => b.size - a.size, data: (a, b) => b.data - a.data,
+               total: (a, b) => b.size + b.data - (a.size + a.data), used: (a, b) => (a.lastUsed || 0) - (b.lastUsed || 0) }[S.sort];
+  return (S.apps.apps || []).filter((a) => !q || a.name.toLowerCase().includes(q)).sort(by);
+}
+function appListHtml() {
+  const list = sortedApps();
+  if (!list.length) return `<div class="r l2">No apps match “${esc(S.search)}”.</div>`;
+  return list.map((a) => {
+    const open = S.appOpen === a.path, sel = S.appSel.has(a.path);
+    const size = S.sort === "data" ? a.data : S.sort === "total" ? a.size + a.data : a.size;
+    let h = `<div class="r click" ${A("appOpen", a.path)}>
+      ${a.locked ? `<span title="${esc(a.locked)}">${cb("off")}</span>` : `<span ${A("appToggle", a.path)}>${cb(sel ? "on" : "")}</span>`}
+      ${appIcon(a)}<div class="grow"><div class="t trunc">${esc(a.name)}</div><div class="d trunc">${appMeta(a)}</div></div>
+      ${unused(a) ? `<span class="tag" title="Not opened in over 3 months">Unused</span>` : ""}<span class="v">${fmt(size)}</span></div>`;
+    if (open) {
+      h += `<div class="sub">
+        <div class="r"><div class="grow"><div>Application</div><div class="p trunc">${esc(a.path)}</div></div><span class="v">${fmt(a.size)}</span><div class="ib" ${A("reveal", a.path)} title="Show in Finder">${I.reveal}</div></div>` +
+        a.dataItems.map((d) => `<div class="r"><div class="grow"><div class="trunc">${esc(d.tilde.replace(/^~\/Library\//, ""))}</div><div class="p">Library data</div></div><span class="v">${fmt(d.size)}</span><div class="ib" ${A("reveal", d.path)} title="Show in Finder">${I.reveal}</div></div>`).join("") +
+        (a.locked ? `<div class="r l2">Can't be removed here: ${esc(a.locked)}.</div>` : "") + `</div>`;
+    }
+    return h;
+  }).join("");
+}
+function viewApps() {
+  if (S.appsStep === "review") return appsReview();
+  if (S.appsStep === "progress") return [live("uninstall", { title: "Uninstalling", sub: "Moving apps and their data to the Trash.", unit: "moved", of: "app" }), ""];
+  if (S.appsStep === "done") return appsDone();
+  const a = S.apps;
+  let h = `<div class="toolbar"><div class="seg"><div class="${S.appsSub === "uninstall" ? "on" : ""}" ${A("appsSub", "uninstall")}>Applications</div><div class="${S.appsSub === "startup" ? "on" : ""}" ${A("appsSub", "startup")}>Startup</div></div>`;
+  if (S.appsSub === "startup") return [h + `<div class="grow"></div><span class="link small" ${A("login")}>Login Items Settings…</span></div>` + startupHtml(), ""];
+  h += `<label class="search">${I.search}<input id="search" placeholder="Search" value="${esc(S.search)}"></label>
+    <select id="sort">${[["size", "App size"], ["data", "Data size"], ["total", "Total size"], ["used", "Last opened"], ["name", "Name"]].map(([k, n]) => `<option value="${k}" ${S.sort === k ? "selected" : ""}>${n}</option>`).join("")}</select>
+    ${rescanButton("apps", a && a.busy)}</div>`;
+  if (!a || !a.apps) return [h + live("appsScan", { title: "Reading applications", sub: "Measuring each app and the data it keeps in your Library.", unit: "measured", of: "app", sort: "recent", limit: 8 }), ""];
+  if (a.busy) h += strip("appsScan", "Updating");
+  h += `<div class="group" id="applist">${appListHtml()}</div>`;
+  const chosen = a.apps.filter((x) => S.appSel.has(x.path)), size = chosen.reduce((s, x) => s + x.size + x.data, 0);
+  const total = a.apps.reduce((s, x) => s + x.size, 0), idle = a.apps.filter(unused).length;
+  const foot = chosen.length
+    ? `<span class="small l2">${plural(chosen.length, "app")} · ${fmt(size)} including data</span><span class="link small" ${A("appClear")}>Clear</span><div class="grow"></div><button class="btn" ${A("toUninstall")}>Uninstall…</button>`
+    : `<span class="small l2">${plural(a.apps.length, "app")} · ${fmt(total)}${idle ? ` · ${idle} unused for 3+ months` : ""}</span><div class="grow"></div><span class="small l3">Updated ${esc(a.ago)}</span>`;
+  return [h, foot];
+}
+function startupHtml() {
+  const items = (S.apps && S.apps.startup) || [];
+  let h = `<div class="caption">Helpers that start automatically. Yours can be turned off here; system-wide ones belong to installed apps.</div><div class="group">`;
+  for (const s of items) {
+    h += `<div class="r"><div class="grow"><div class="trunc">${esc(s.label.replace(/ \((system daemon|all users)\)$/, ""))}</div><div class="d trunc">${esc(s.tilde)}</div></div>
+      <span class="tag">${s.user ? "You" : "System"}</span>
+      <div class="ib" ${A("reveal", s.path)} title="Show in Finder">${I.reveal}</div>
+      ${s.user ? `<div class="ib" ${A("startupAsk", s.path)} title="Turn off">${I.trash}</div>` : `<span style="width:24px"></span>`}</div>`;
+    if (S.confirmStartup === s.path) {
+      h += `<div class="confirm"><div class="q">Stop this helper and move its launch file to the Trash? The app stays installed.</div>
+        <button class="btn sm red" ${A("startupYes", s.path)}>Turn Off</button> <button class="btn sm sec" ${A("cancel")}>Cancel</button></div>`;
+    }
+  }
+  return h + (items.length ? "" : `<div class="r l2">No launch agents found.</div>`) + `</div>`;
+}
+function appsReview() {
+  const chosen = S.apps.apps.filter((x) => S.appSel.has(x.path)), total = chosen.reduce((s, x) => s + x.size + x.data, 0);
+  let h = `<div class="title">Uninstall ${chosen.length === 1 ? esc(chosen[0].name) : plural(chosen.length, "app")}?</div>
+    <div class="caption">Apps and their Library data go to the Trash, so anything can be put back.</div>`;
+  for (const a of chosen) {
+    h += `<div class="group"><div class="r">${appIcon(a)}<div class="grow"><div class="t">${esc(a.name)}</div><div class="d">${fmt(a.size)} app · ${fmt(a.data)} data · ${a.lastUsed ? `opened ${esc(when(a.lastUsed))}` : "never opened"}</div></div>${a.running ? '<span class="tag">Open</span>' : ""}</div>` +
+      (a.dataItems.length ? `<div class="sub">${a.dataItems.map((d) => `<div class="r"><div class="grow trunc" style="font-size:11px;color:var(--label2)">${esc(d.tilde)}</div><span class="v small">${fmt(d.size)}</span></div>`).join("")}</div>` : "") + `</div>`;
+  }
+  return [h, `<button class="btn sec" ${A("appsBack")}>Back</button><div class="grow"></div><button class="btn" ${A("uninstallNow")}>Move to Trash · ${fmt(total)}</button>`];
+}
+function appsDone() {
+  const r = S.uninstallResult.results, ok = r.filter((x) => x.ok);
+  let h = `<div class="done"><span class="ok">${I.okCircle}</span><div class="big" style="margin-top:10px">${plural(ok.length, "app")} removed</div>
+    <div class="l2" style="margin-top:4px">Empty the Trash to free the space.</div></div><div class="group">`;
+  for (const x of r) {
+    h += `<div class="r"><div class="grow">${esc(x.name)}</div><span class="v" style="${x.ok ? "" : "color:var(--red)"}">${x.ok ? fmt(x.trashed) : "Failed"}</span></div>`;
+    for (const f of x.failed) h += `<div class="r small l2">${esc(f)}</div>`;
+  }
+  return [h + `</div>`, `<div class="grow"></div><button class="btn" ${A("appsDone")}>Done</button>`];
+}
+
+// ---------------------------------------------------------------- analyze
+function anNode() {
+  let n = S.an.root; const path = [];
+  for (const name of S.anPath) {
+    const next = (n.c || []).find((c) => !c.o && c.n === name);
+    if (!next) break;
+    path.push(name); n = next;
+  }
+  S.anPath = path;
+  return n;
+}
+function usage(d) {
+  const segs = d.home === undefined
+    ? [["Used", d.used, "var(--accent)"], ["Free", d.free, null]]
+    : [["Home folder", d.home, "var(--accent)"], ["Applications", d.apps || 0, "#ff9f0a"], ["macOS & system data", d.other, "#8e8e93"], ["Free", d.free, null]];
+  return `<div class="usage">${segs.filter((s) => s[2]).map(([, v, c]) => `<i style="width:${(v / d.total) * 100}%;background:${c}"></i>`).join("")}</div>
+    <div class="legend">${segs.filter(([, v]) => v > 0).map(([n, v, c]) => `<span><b style="background:${c || "var(--fill2)"}"></b>${n} <span style="color:var(--label)">${fmt(v)}</span></span>`).join("")}</div>`;
+}
+function nodeRow(name, size, max, isDir, hasKids, path, locked, sub) {
+  let h = `<div class="r ${hasKids ? "click" : ""}" ${hasKids ? A("anOpen", name) : ""}>${isDir ? I.folder : I.file}
+    <div class="grow"><div class="trunc">${esc(name)}</div>${sub ? `<div class="d trunc">${esc(sub)}</div>` : `<div class="prop"><i style="width:${max ? Math.max(1, (size / max) * 100) : 0}%"></i></div>`}</div>
+    <div class="acts"><div class="ib" ${A("reveal", path)} title="Show in Finder">${I.reveal}</div>
+    ${locked ? `<div class="ib" title="Protected: ${esc(locked)}">${I.lock}</div>` : `<div class="ib" ${A("trashAsk", path)} title="Move to Trash">${I.trash}</div>`}</div>
+    <span class="v" style="min-width:64px;text-align:right">${fmt(size)}</span>${hasKids ? I.chev : `<span style="width:10px"></span>`}</div>`;
+  if (S.confirmTrash === path) {
+    const lib = path.startsWith(S.home + "/Library/"), hidden = path.slice(S.home.length + 1).startsWith(".");
+    h += `<div class="confirm"><div class="q">Move “${esc(name)}” (${fmt(size)}) to the Trash?</div>
+      ${lib ? `<div class="w">This is app data. Only remove it if you no longer use the app it belongs to.</div>` : ""}
+      ${hidden ? `<div class="w">Hidden folder, usually used by developer tools.</div>` : ""}
+      <button class="btn sm red" ${A("trashYes", path)}>Move to Trash</button> <button class="btn sm sec" ${A("cancel")}>Cancel</button></div>`;
+  }
+  return h;
+}
+function viewAnalyze() {
+  const a = S.an;
+  if (!a) return ["", ""];
+  let h = `<div class="summary"><div class="grow"><div class="big">${fmt(a.disk.free)}</div><div class="l2 small" style="margin-top:3px">available of ${fmt(a.disk.total)}</div></div>${a.scan ? rescanButton("analyze", a.busy) : ""}</div>${usage(a.disk)}`;
+  if (!a.scan) {
+    h += a.busy
+      ? `<div style="margin-top:14px">${live("analyze", { title: "Mapping your home folder", sub: "About a minute for a full disk. You can close this panel, it keeps going.", unit: "scanned", of: "top-level item", sort: "size", limit: 10 })}</div>`
+      : `<div class="group" style="margin-top:16px"><div class="r" style="padding:14px 12px"><div class="grow"><div class="t">See what's using space</div><div class="d">Maps every large folder and file in your home folder. Results are kept, so you only wait once.</div></div><button class="btn" ${A("rescan", "analyze")}>Scan</button></div></div>`;
+    return [h, ""];
+  }
+  h += `<div class="toolbar" style="margin-top:14px"><div class="seg"><div class="${S.anSub === "folders" ? "on" : ""}" ${A("anSub", "folders")}>Folders</div><div class="${S.anSub === "large" ? "on" : ""}" ${A("anSub", "large")}>Large Files</div></div></div>`;
+  if (a.busy) h += strip("analyze", "Updating");
+  if (S.anSub === "large") {
+    h += `<div class="group">${a.large.map((f) => nodeRow(f.name, f.size, 0, false, false, f.path, f.locked, f.tilde.replace(/\/[^/]*$/, ""))).join("") || `<div class="r l2">No files over 200 MB.</div>`}</div>`;
+  } else {
+    const node = anNode(), crumbs = ["Home", ...S.anPath];
+    h += `<div class="crumbs">${S.anPath.length ? `<div class="ib" ${A("anBack")} title="Back">${I.back}</div>` : ""}${crumbs.map((c, i) => `${i ? `<span class="l3">›</span>` : ""}<span class="c ${i === crumbs.length - 1 ? "cur" : ""}" ${A("anGo", i)}>${esc(c)}</span>`).join("")}<span class="grow"></span><span class="l2">${fmt(node.s)}</span></div>`;
+    const kids = node.c || [], max = kids.reduce((m, k) => Math.max(m, k.s), 0);
+    h += `<div class="group">${kids.map((k) => k.o
+      ? `<div class="r l2 small"><span style="width:16px"></span><div class="grow">${plural(k.o, "smaller item")}</div><span class="v" style="min-width:64px;text-align:right">${fmt(k.s)}</span><span style="width:10px"></span></div>`
+      : nodeRow(k.n, k.s, max, k.d, (k.c || []).some((x) => !x.o), [S.home, ...S.anPath, k.n].join("/"), k.l)).join("") || `<div class="r l2">Nothing large in here.</div>`}</div>`;
+  }
+  return [h + fdaRow("Mail, Messages and other protected folders"), `<span class="small l3">Updated ${esc(a.ago)} · removed items go to the Trash</span>`];
+}
+
+// ---------------------------------------------------------------- optimize
+function viewOptimize() {
+  const o = S.opt;
+  if (!o) return ["", ""];
+  let h = `<div class="caption" style="margin-top:6px">Maintenance tasks. Nothing runs until you confirm.</div><div class="group">`;
+  for (const t of o.tasks) {
+    const running = o.busy === t.i, res = S.optResult[t.i];
+    const right = running ? I.spinner : res === "ok" ? `<span style="color:var(--green)" class="small">Done</span>`
+      : `<button class="btn sm sec" ${A("optAsk", t.i)} ${o.busy != null ? "disabled" : ""}>Run…</button>`;
+    h += `<div class="r"><div class="grow"><div class="t">${esc(t.title)}${t.admin ? ` <span class="l3" title="Asks for your password">${I.lock}</span>` : ""}</div>
+      <div class="d">${esc(t.detail)}${t.i === 0 ? ` <b>${plural(o.snapshots, "snapshot")} on this Mac.</b>` : ""}</div>
+      ${res && res !== "ok" ? `<div class="d" style="color:var(--red)">${esc(res)}</div>` : ""}</div>${right}</div>`;
+    if (S.optConfirm === t.i) {
+      h += `<div class="confirm"><div class="q">Run “${esc(t.title)}”?${t.admin ? " macOS will ask for your password." : ""}</div><div class="cmd">${esc(t.cmd)}</div>
+        <button class="btn sm" ${A("optYes", t.i)}>Run</button> <button class="btn sm sec" ${A("cancel")}>Cancel</button></div>`;
+    }
+  }
+  return [h + `</div>`, ""];
+}
+
+// ---------------------------------------------------------------- status
+function viewStatus() {
+  const s = S.st;
+  if (!s) return [`<div class="r">${I.spinner}</div>`, ""];
+  const memPct = (s.memUsed / s.memTotal) * 100, usedPct = 100 - (s.free / s.total) * 100;
+  const dot = s.score >= 70 ? "var(--green)" : s.score >= 50 ? "var(--orange)" : "var(--red)";
+  const hist = (s.hist.cpu || []).slice(-30), cpu = [...Array(30 - hist.length).fill(0), ...hist];
+  const netMax = Math.max(1, ...(s.hist.down || []));
+  const split = (b) => { const [n, u] = fmt(b).split(" "); return `${n}<small>${u}</small>`; };
+  let h = `<div class="summary"><div class="grow"><div class="big"><span class="health-dot" style="background:${dot}"></span>${esc(s.label)}</div>
+    <div class="l2 small" style="margin-top:3px">${esc(s.machine)} · up ${esc(s.uptime)}</div></div><div class="l3 small" style="padding-bottom:2px">Health ${s.score}/100</div></div>
+    <div class="tiles">
+      <div class="tile"><div class="k"><span>CPU</span><span>${s.cores} cores</span></div><div class="n">${s.cpu.toFixed(0)}<small>%</small></div>
+        <div class="cbars">${cpu.map((v) => `<i style="height:${Math.max(3, v)}%"></i>`).join("")}</div><div class="s">Load ${s.load.toFixed(1)}</div></div>
+      <div class="tile"><div class="k"><span>Memory</span><span>${fmt(s.memTotal)}</span></div><div class="n">${memPct.toFixed(0)}<small>%</small></div>
+        ${spark(s.hist.mem, 100, 24)}<div class="s">${fmt(s.memUsed)} used · swap ${fmt(s.swap)}</div></div>
+      <div class="tile"><div class="k"><span>Disk</span><span>${fmt(s.total)}</span></div><div class="n">${split(s.free)}<small> free</small></div>
+        <div class="bar" style="height:6px;margin:9px 0 0"><i style="width:${usedPct}%;${usedPct > 90 ? "background:var(--red)" : ""}"></i></div><div class="s">${usedPct.toFixed(0)}% used</div></div>
+      <div class="tile"><div class="k"><span>Network</span><span>↑ ${fmt(s.up)}/s</span></div><div class="n">${split(s.down)}<small>/s</small></div>
+        ${spark(s.hist.down, netMax, 24)}<div class="s">Download</div></div>
+    </div>`;
+  if (s.battery) {
+    const pct = (s.battery.match(/(\d+)%/) || [])[1], rest = s.battery.split(" · ").slice(1).join(" · ");
+    h += `<div class="group"><div class="r"><div class="grow"><div class="t">Battery ${pct}%</div><div class="d">${esc(rest)}</div></div><div style="width:110px" class="bar"><i style="width:${pct}%;background:var(--green)"></i></div></div></div>`;
+  }
+  h += `<div class="section">Using the most memory</div><div class="group">${s.top.map(([n, m, c]) => `<div class="r"><div class="grow trunc">${esc(n)}</div><span class="l3 small" style="min-width:58px;text-align:right">${c.toFixed(1)}% CPU</span><span class="v" style="min-width:70px;text-align:right">${fmt(m)}</span></div>`).join("")}</div>
+    <div class="section">History</div><div class="group"><div class="r"><div class="grow">Cleaned</div><span class="v">${fmt(s.history.cleaned)}</span></div>
+      <div class="r"><div class="grow">Apps uninstalled</div><span class="v">${s.history.uninstalled}</span></div>
+      <div class="r"><div class="grow">Optimizations</div><span class="v">${s.history.optimized}</span></div></div>`;
+  return [h, ""];
+}
+
+// ---------------------------------------------------------------- actions
+function setSel(indices, on) {
+  for (const c of S.clean.cats) for (const it of c.items) if (indices.includes(it.i) && !it.running) it.sel = on;
+  post({ t: "select", scan: S.clean.scan, items: indices, on });
+}
+const allItems = () => S.clean.cats.flatMap((c) => c.items).filter((i) => !i.running);
+const ACT = {
+  tab: (k) => { S.tab = k; S.confirmTrash = S.optConfirm = S.confirmStartup = null; },
+  rescan: (w) => post({ t: "rescan", what: w }),
+  expand: (k) => (S.open.has(k) ? S.open.delete(k) : S.open.add(k)),
+  catToggle: (k) => { const c = S.clean.cats.find((x) => x.key === k), st = catStats(c); setSel(c.items.filter((i) => !i.running).map((i) => i.i), st.sel !== st.selectable); },
+  itemToggle: (i) => { const it = allItems().find((x) => x.i === i); if (it) setSel([i], !it.sel); },
+  selAll: () => setSel(allItems().map((i) => i.i), true),
+  selNone: () => setSel(allItems().map((i) => i.i), false),
+  selRec: () => post({ t: "recommended" }),
+  quitHolders: () => post({ t: "quitHolders" }),
+  toReview: () => (S.cleanStep = "review"),
+  back: () => (S.cleanStep = "select"),
+  cleanNow: () => { S.cleanStep = "progress"; delete S.prog.clean; post({ t: "clean", scan: S.clean.scan, items: selectedItems().map((i) => i.i) }); },
+  cleanDone: () => (S.cleanStep = "select"),
+  gotoSnapshots: () => { S.cleanStep = "select"; S.tab = "optimize"; S.optConfirm = 0; },
+  appsSub: (k) => { S.appsSub = k; S.confirmStartup = null; },
+  appOpen: (p) => (S.appOpen = S.appOpen === p ? null : p),
+  appToggle: (p) => (S.appSel.has(p) ? S.appSel.delete(p) : S.appSel.add(p)),
+  appClear: () => S.appSel.clear(),
+  toUninstall: () => (S.appsStep = "review"),
+  appsBack: () => (S.appsStep = "list"),
+  uninstallNow: () => { S.appsStep = "progress"; delete S.prog.uninstall; post({ t: "uninstall", paths: [...S.appSel] }); },
+  appsDone: () => (S.appsStep = "list"),
+  reveal: (p) => post({ t: "reveal", path: p }),
+  login: () => post({ t: "open", what: "login" }),
+  startupAsk: (p) => (S.confirmStartup = p),
+  startupYes: (p) => { S.confirmStartup = null; post({ t: "disableStartup", path: p }); },
+  anSub: (k) => { S.anSub = k; S.confirmTrash = null; },
+  anOpen: (n) => { S.anPath.push(n); S.confirmTrash = null; },
+  anBack: () => { S.anPath.pop(); S.confirmTrash = null; },
+  anGo: (i) => { S.anPath = S.anPath.slice(0, i); S.confirmTrash = null; },
+  trashAsk: (p) => (S.confirmTrash = p),
+  trashYes: (p) => { S.confirmTrash = null; post({ t: "trash", path: p }); },
+  cancel: () => { S.confirmTrash = S.optConfirm = S.confirmStartup = null; },
+  optAsk: (i) => { S.optConfirm = i; delete S.optResult[i]; },
+  optYes: (i) => { S.optConfirm = null; S.opt.busy = i; post({ t: "optimize", i }); },
+  fda: () => post({ t: "open", what: "fda" }),
+  unpin: () => post({ t: "unpin" }),
+  hidePanel: () => post({ t: "hide" }),
+  quit: () => post({ t: "quit" }),
+};
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-a]");
+  if (!el || el.hasAttribute("disabled")) return;
+  const fn = ACT[el.dataset.a];
+  if (fn) { fn(el.dataset.r !== undefined ? R[+el.dataset.r] : undefined); render(); }
+});
+document.addEventListener("input", (e) => {
+  if (e.target.id === "search") { S.search = e.target.value; const l = $("applist"); if (l) l.innerHTML = appListHtml(); }
+});
+document.addEventListener("change", (e) => { if (e.target.id === "sort") { S.sort = e.target.value; render(); } });
+document.addEventListener("focusin", (e) => (S.searchFocus = e.target.id === "search"));
+document.addEventListener("focusout", (e) => { if (e.target.id === "search") S.searchFocus = false; });
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (S.search && document.activeElement?.id === "search") { S.search = ""; render(); } else post({ t: "hide" });
+});
+// Drag the panel by its header; once moved it stays open until closed.
+$("hdr").addEventListener("mousedown", (e) => {
+  if (e.button === 0 && !e.target.closest("[data-a], input, select")) { e.preventDefault(); post({ t: "drag" }); }
+});
+render();
+post({ t: "ready" });
+</script>
+</body>
+</html>
