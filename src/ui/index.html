@@ -291,7 +291,8 @@ function render() {
 }
 
 const fdaRow = (what) => S.fda ? "" :
-  `<div class="group"><div class="r click" ${A("fda")}><span class="l2">${I.lock}</span><div class="grow small l2">Turn on Full Disk Access to include ${what}.</div><span class="link small">Open Settings</span></div></div>`;
+  `<div class="group"><div class="r"><span class="l2">${I.lock}</span><div class="grow small l2">Turn on Full Disk Access for Disk Cleaner to include ${what}. Already on? Relaunch to apply it.</div>
+    <span class="link small" ${A("fda")}>Open Settings</span><span class="l3 small">·</span><span class="link small" ${A("relaunch")}>Relaunch</span></div></div>`;
 const rescanButton = (what, busy) => busy ? `<span class="ib">${I.spinner}</span>` : `<div class="ib" ${A("rescan", what)} title="Scan again">${I.refresh}</div>`;
 
 // ---------------------------------------------------------------- live progress
@@ -670,6 +671,7 @@ const ACT = {
   optAsk: (i) => { S.optConfirm = i; delete S.optResult[i]; },
   optYes: (i) => { S.optConfirm = null; S.opt.busy = i; post({ t: "optimize", i }); },
   fda: () => post({ t: "open", what: "fda" }),
+  relaunch: () => post({ t: "relaunch" }),
   unpin: () => post({ t: "unpin" }),
   hidePanel: () => post({ t: "hide" }),
   quit: () => post({ t: "quit" }),

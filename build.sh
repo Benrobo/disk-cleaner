@@ -26,7 +26,10 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
-codesign --force --sign - "$APP"
+# Ad-hoc sign with a designated requirement on the bundle id (not the build's hash), so a
+# Full Disk Access grant keeps working after rebuilding.
+codesign --force --sign - --identifier com.local.diskcleaner \
+  -r='designated => identifier "com.local.diskcleaner"' "$APP"
 echo "Built $APP"
 if [ "$1" = "install" ]; then
   pkill -x disk-cleaner 2>/dev/null || true

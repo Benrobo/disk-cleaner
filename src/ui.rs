@@ -81,6 +81,7 @@ pub struct Ui {
     session_overrides: std::collections::HashMap<String, bool>,
     busy: Busy,
     visible: bool,
+    fda: bool,
     /// Dragged away from the menu bar: stays open until closed explicitly.
     pinned: bool,
     ready: bool,
@@ -160,6 +161,7 @@ impl Ui {
             session_overrides: Default::default(),
             busy: Busy::default(),
             visible: false,
+            fda: util::has_full_disk_access(),
             pinned: false,
             ready: false,
             last_hide: Instant::now() - Duration::from_secs(5),
@@ -282,12 +284,33 @@ impl Ui {
         self.window.set_visible(true);
         self.window.set_focus();
         self.visible = true;
-        self.send(json!({"t": "shown", "fda": util::has_full_disk_access(), "pinned": self.pinned}));
+        self.refresh_fda();
+        self.send(json!({"t": "shown", "fda": self.fda, "pinned": self.pinned}));
         // Refresh "scanned x ago" labels and anything that changed while hidden.
         self.push_status();
         self.push_clean();
         self.push_apps();
         self.push_analyze();
+    }
+
+    /// Pick up a Full Disk Access grant made while running: rescan so the Trash shows up.
+    fn refresh_fda(&mut self) {
+        let now = util::has_full_disk_access();
+        if now && !self.fda {
+            self.fda = true;
+            self.start_clean_scan();
+        }
+        self.fda = now;
+    }
+
+    /// Restart the app (macOS sometimes applies Full Disk Access only after a relaunch).
+    fn relaunch(&self) {
+        let bundle = std::env::current_exe().ok().and_then(|e| e.ancestors().find(|a| a.extension().is_some_and(|x| x == "app")).map(Path::to_path_buf));
+        if let Some(app) = bundle {
+            self.store.save();
+            let _ = std::process::Command::new("/bin/sh").arg("-c").arg("sleep 1; /usr/bin/open \"$0\"").arg(&app).spawn();
+            std::process::exit(0);
+        }
     }
 
     fn hide(&mut self) {
@@ -496,6 +519,7 @@ impl Ui {
                     self.spawn(move |_| Ev::OptimizeDone(i, optimize::run(&optimize::TASKS[i])));
                 }
             }
+            "relaunch" => self.relaunch(),
             "open" => match v["what"].as_str() {
                 Some("fda") => util::open("x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"),
                 Some("login") => util::open("x-apple.systempreferences:com.apple.LoginItems-Settings.extension"),
@@ -525,6 +549,12 @@ impl Ui {
             }
         }
         if self.visible {
+            if !self.fda {
+                self.refresh_fda();
+                if self.fda {
+                    self.send(json!({"t": "home", "home": util::home(), "fda": true}));
+                }
+            }
             self.push_status();
         }
     }
