@@ -520,7 +520,8 @@ fn clean_one(it: &Item, ctx: &safety::Ctx) -> Result<u64, String> {
             }
 }
 
-fn empty_trash(ctx: &safety::Ctx) -> Result<u64, String> {
+fn empty_trash(_: &safety::Ctx) -> Result<u64, String> {
+    let ctx = &safety::Ctx { trash: true, ..Default::default() };
     let trash = h(".Trash");
     // Without Full Disk Access macOS hides the Trash; we never fall back to Finder's
     // "empty trash", which would bypass these checks and empty every disk's Trash.
@@ -532,7 +533,7 @@ fn empty_trash(ctx: &safety::Ctx) -> Result<u64, String> {
             if e.file_type().is_ok_and(|t| t.is_symlink()) {
                 let _ = fs::remove_file(&p); // a symlink in the Trash: remove the link only
                 0
-            } else if safety::check_cleanable(&p).is_ok() {
+            } else if safety::check_trash_item(&p).is_ok() {
                 safety::remove_tree(&p, ctx)
             } else {
                 0

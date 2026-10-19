@@ -31,6 +31,34 @@ fn main() {
         }
         return;
     }
+    if let Some(i) = std::env::args().position(|a| a == "--trash-report") {
+        // Read-only diagnosis of what emptying the Trash would skip. Writes to the given file.
+        let out_path = std::env::args().nth(i + 1).unwrap_or("/tmp/dc-trash-report.txt".into());
+        let trash = util::h(".Trash");
+        let ctx = safety::Ctx { trash: true, ..safety::Ctx::new() };
+        let running = status::running_now();
+        let mut lines = vec![format!("fda={} open_files={}", util::has_full_disk_access(), ctx.open.len())];
+        lines.push(format!("trash in use by a process: {}", running.paths.iter().any(|p| p.starts_with(&trash))));
+        use std::os::unix::fs::MetadataExt;
+        let dev = std::fs::metadata(&trash).map(|m| m.dev()).unwrap_or(0);
+        match std::fs::read_dir(&trash) {
+            Ok(rd) => {
+                for e in rd.flatten() {
+                    let p = e.path();
+                    let guard = safety::check_trash_item(&p).err().unwrap_or_else(|| "ok".into());
+                    lines.push(format!("ITEM {} | symlink={} | guard={guard} | size={}", p.display(), e.file_type().map(|t| t.is_symlink()).unwrap_or(false), util::size_of(&p)));
+                    let mut why = vec![];
+                    safety::diagnose(&p, &ctx, &mut why, dev as u64);
+                    for w in why.iter().take(40) {
+                        lines.push(format!("    {w}"));
+                    }
+                }
+            }
+            Err(e) => lines.push(format!("cannot read Trash: {e}")),
+        }
+        let _ = std::fs::write(out_path, lines.join("\n"));
+        return;
+    }
     if std::env::args().any(|a| a == "--report") {
         return report();
     }

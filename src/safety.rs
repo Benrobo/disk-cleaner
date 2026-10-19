@@ -316,6 +316,15 @@ pub fn check_user_launch_agent(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// An item directly inside ~/.Trash (the user already chose to delete it).
+pub fn check_trash_item(path: &Path) -> Result<(), String> {
+    check_basic_with(path, 2, false)?;
+    if path.parent() != Some(&home().join(".Trash")) {
+        return Err(format!("not in the Trash: {}", path.display()));
+    }
+    Ok(())
+}
+
 /// Apps live outside home; allow only real .app bundles in /Applications or ~/Applications.
 pub fn check_app_bundle(path: &Path) -> Result<(), String> {
     let s = path.to_string_lossy();
@@ -335,11 +344,14 @@ pub fn check_app_bundle(path: &Path) -> Result<(), String> {
 pub struct Ctx {
     /// Files currently open by any process (from `lsof`). These are never deleted.
     pub open: HashSet<PathBuf>,
+    /// Emptying the Trash: everything in it was put there by the user, so the "keep inside"
+    /// names don't apply (same as Finder and Mole). Symlink and volume safety still do.
+    pub trash: bool,
 }
 
 impl Ctx {
     pub fn new() -> Ctx {
-        Ctx { open: crate::util::open_files() }
+        Ctx { open: crate::util::open_files(), trash: false }
     }
 
     /// Open, or part of an open SQLite database family (db + -wal/-shm/-journal).
@@ -377,6 +389,37 @@ pub fn remove_tree(path: &Path, ctx: &Ctx) -> u64 {
     let freed = remove_entry(pfd, &cstr(name), path, dev, ctx);
     unsafe { libc::close(pfd) };
     freed
+}
+
+/// Read-only: list why entries under `path` would not be deleted (for `--trash-report`).
+pub fn diagnose(path: &Path, ctx: &Ctx, out: &mut Vec<String>, root_dev: u64) {
+    let Ok(md) = fs::symlink_metadata(path) else { return out.push(format!("unreadable: {}", path.display())) };
+    use std::os::darwin::fs::MetadataExt as _;
+    use std::os::unix::fs::MetadataExt as _;
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let mut why = vec![];
+    if !ctx.trash && keep_inside(&name) { why.push("protected name"); }
+    if !ctx.trash && ctx.in_use(path) { why.push("open by a process"); }
+    if md.dev() != root_dev { why.push("other volume"); }
+    if md.uid() != unsafe { libc::getuid() } { why.push("owned by another user"); }
+    if md.st_flags() & (libc::UF_IMMUTABLE | libc::SF_IMMUTABLE) != 0 { why.push("locked (immutable flag)"); }
+    if let Some(parent) = path.parent() {
+        let c = cstr(parent.as_os_str());
+        if unsafe { libc::access(c.as_ptr(), libc::W_OK) } != 0 { why.push("parent not writable"); }
+    }
+    if !why.is_empty() {
+        out.push(format!("{} -> {}", path.display(), why.join(", ")));
+    }
+    if md.is_dir() && !md.file_type().is_symlink() && why.is_empty() {
+        if let Ok(rd) = fs::read_dir(path) {
+            for e in rd.flatten() {
+                if out.len() > 400 { return; }
+                diagnose(&e.path(), ctx, out, root_dev);
+            }
+        } else {
+            out.push(format!("{} -> cannot list folder", path.display()));
+        }
+    }
 }
 
 fn cstr(s: &std::ffi::OsStr) -> CString {
@@ -426,7 +469,7 @@ fn remove_children(fd: libc::c_int, dir: &Path, dev: libc::dev_t, ctx: &Ctx) -> 
 }
 
 fn remove_entry(parent: libc::c_int, name: &CStr, path: &Path, dev: libc::dev_t, ctx: &Ctx) -> u64 {
-    if keep_inside(&name.to_string_lossy()) || ctx.in_use(path) {
+    if !ctx.trash && (keep_inside(&name.to_string_lossy()) || ctx.in_use(path)) {
         return 0;
     }
     let mut st: libc::stat = unsafe { std::mem::zeroed() };
@@ -524,6 +567,18 @@ mod tests {
         assert!(base.join(".cookies").exists());
         assert!(base.join("sub/open.db").exists());
         assert!(!base.join("sub/junk.bin").exists());
+        fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn emptying_trash_removes_protected_names_too() {
+        let base = std::env::temp_dir().join(format!("dc-test3-{}", std::process::id()));
+        fs::create_dir_all(base.join("Cursor/IndexedDB")).unwrap();
+        fs::write(base.join("Cursor/Cookies"), b"x").unwrap();
+        fs::write(base.join("Cursor/IndexedDB/db"), b"x").unwrap();
+        let ctx = Ctx { trash: true, ..Default::default() };
+        remove_tree(&base.join("Cursor"), &ctx);
+        assert!(!base.join("Cursor").exists(), "whole trashed folder is removed");
         fs::remove_dir_all(&base).unwrap();
     }
 
